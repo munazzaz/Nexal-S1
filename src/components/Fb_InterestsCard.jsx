@@ -21,13 +21,37 @@ export default function Fb_InterestsCard({ username }) {
     );
   }
 
+  // if (!data) {
+  //   return (
+  //     <div className="p-4 text-gray-500">
+  //       Loading interests...
+  //     </div>
+  //   );
+  // }
+
   if (!data) {
-    return (
-      <div className="p-4 text-gray-500">
-        Loading interests...
+  return (
+    <div className="mx-12 mt-6 bg-[#1F2937] shadow-lg rounded-lg p-6">
+      <h2 className="text-[#F0FFFF] text-[20px] font-semibold mb-4">
+        Top 5 Interests
+      </h2>
+      <div className="flex justify-center items-center py-10">
+        <div
+          className="
+            h-10 
+            w-10 
+            border-4 
+            border-t-transparent 
+            border-[#0D6EFD] 
+            rounded-full 
+            animate-spin
+          "
+        />
       </div>
-    );
-  }
+    </div>
+  );
+}
+
 
   const { topInterests } = data;
 

@@ -1,50 +1,3 @@
-// import Navbar from '@/components/Navbar';
-
-// export default function ProfilePage() {
-
-//   return (
-//   <div className="bg-[#111827] min-h-screen">
-//       <div className="max-w-screen-2xl mx-auto px-5">
-//         <Navbar />
-//         <div className="pt-44">
-//           <h1 className="text-2xl font-bold mb-4 text-white">Profile Posts</h1>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }
-
-// // src/app/facebook-profile/[id]/page.jsx (correct)
-// import Navbar from "@/components/Navbar";
-// import FbPosts from "@/components/FbPosts";
-// import UserDetailFB from "@/components/UserDetailFB";
-
-
-// export default async function ProfilePage({ params }) {
-//   const { id } = params; // this is the Facebook profile_id from the route
-
-//   return (
-//     <div className="bg-[#111827] min-h-screen">
-//       <div className="max-w-screen-2xl mx-auto px-5">
-//         <Navbar />
-
-        
-//         {/* ─── USER DETAILS CARD ───────────────────────────────────────────── */}
-//         <div className="pt-44 pb-8">
-//           <UserDetailFB profileId={id} />
-//         </div>
-
-//         <div className="pt-44 pb-20 px-5 pr-5">
-//           <h1 className="text-2xl font-bold mb-4 text-white">Profile Posts</h1>
-//           {/* Pass the `id` from the dynamic route as `profileId` */}
-//           <FbPosts profileId={id} />
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-
 // src/app/facebook-profile/[id]/page.jsx
 import Navbar from "@/components/Navbar";
 import FbPosts from "@/components/FbPosts";
@@ -54,12 +7,14 @@ import RiskScoreCard from "@/components/RiskScoreCard";
 import FbRelationCard from "@/components/fb_Relation_Card";   
 import Fb_InterestsCard from "@/components/Fb_InterestsCard";
 
+import ExportToPdfButton from "@/components/ExportToPdfButton"; // ← our new component
 
 
 import { 
   GlobeAltIcon, 
   PhoneIcon 
 } from "@heroicons/react/24/outline";
+
 
 // A helper that runs on the server to fetch Facebook profile details for “location”
 async function fetchFacebookProfile(profileId) {
@@ -72,6 +27,73 @@ async function fetchFacebookProfile(profileId) {
     return null;
   }
   return res.json();
+}
+
+// ── 2) Fetch raw posts from your fb_posts API ──────────────────────────────
+// We expect each post to have a `timestamp` field (integer, Unix seconds).
+async function fetchFacebookPosts(profileId) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/fb_posts?username=${profileId}`,
+    { cache: "no-store" }
+  );
+  if (!res.ok) {
+    console.error("Failed to fetch fb posts:", await res.text());
+    return [];
+  }
+  const json = await res.json();
+  // `json.results` should be an array of objects with at least { post_id, timestamp, ... }.
+  return Array.isArray(json.results) ? json.results : [];
+}
+
+
+function formatRelativeTime(isoString) {
+  if (!isoString) return "";
+  const now = new Date();
+  const then = new Date(isoString);
+  const diffMs = now - then;
+  if (diffMs < 0) return "in the future";
+
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) {
+    return "just now";
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days} day${days === 1 ? "" : "s"} ago`;
+  }
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) {
+    return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  }
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return `${months} month${months === 1 ? "" : "s"} ago`;
+  }
+  const years = Math.floor(days / 365);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
+/**
+ * Format a JavaScript Date (or ISO‐string) into "MM/DD/YYYY".
+ */
+function formatCalendarDate(isoString) {
+  try {
+    const d = new Date(isoString);
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(d.getUTCDate()).padStart(2, "0");
+    const yyyy = d.getUTCFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+  } catch {
+    return "";
+  }
 }
 
 export default async function ProfilePage({ params }) {
@@ -94,6 +116,29 @@ export default async function ProfilePage({ params }) {
 
     // Determine if we have a “real” location or must fall back:
   const hasRealLocation = locationText && locationText !== "Unknown";
+  
+// ─── 2) Fetch raw posts & pick out the “latest” one ───
+  const allPosts = await fetchFacebookPosts(id);
+  // If your API returns *unordered* results, sort them by created_time descending:
+  allPosts.sort((a, b) => {
+    const ta = typeof a.timestamp === "number" ? a.timestamp : 0;
+    const tb = typeof b.timestamp === "number" ? b.timestamp : 0;
+    return tb - ta;
+  });
+
+  // Grab the first item as “most recent”
+  const latestPost = allPosts.length > 0 ? allPosts[0] : null;
+ const latestISO = latestPost
+    ? new Date(latestPost.timestamp * 1000).toISOString()
+    : null;
+
+  const relativeText = latestISO
+    ? formatRelativeTime(latestISO)
+    : "No posts";
+
+  const calendarDateText = latestISO
+    ? formatCalendarDate(latestISO)
+    : "";
 
 
   return (
@@ -102,6 +147,22 @@ export default async function ProfilePage({ params }) {
         {/* ─── NAVBAR ───────── */}
         <Navbar />
 
+
+        {/* ─── Export Button (fixed) ───────────────────────────────── */}
+        {/* <ExportToPdfButton
+          containerId="profile-pdf-container"
+          fileName={`profile-${id}`}
+        /> */}
+
+          <div className="absolute top-4 right-4 z-10 mt-40 mr-28">
+            <ExportToPdfButton
+              containerId="profile-pdf-container"
+              fileName={`profile-${id}`}
+            />
+          </div>
+
+
+           <div id="profile-pdf-container" className="bg-[#111827] transition-colors duration-200">
         {/* ─── USER DETAILS CARD (profile picture, name, bio) ───────────────────── */}
         <div className="pt-44 pb-8">
           <UserDetailFB profileId={id} />
@@ -126,11 +187,13 @@ export default async function ProfilePage({ params }) {
                   Latest Post
                 </p>
                 <p className="text-[22px] text-white mb-[4px]">
-                  a month ago
+                  {relativeText}
                 </p>
-                <p className="mt-1 mb-[4px] text-[14px] text-[#28A745]">
-                  09/12/2023
-                </p>
+                {calendarDateText && (
+                  <p className="mt-1 mb-[4px] text-[14px] text-[#28A745]">
+                    {calendarDateText}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -166,20 +229,22 @@ export default async function ProfilePage({ params }) {
         </div>
 
         {/* Relationship List */}
-        <div className="pt-[44px] pb-[44px]">
+         <div className="pt-[44px] pb-[44px]">
         <FbRelationCard username={id} />
-        </div>
+        </div> 
 
        {/* Interests Section */}
-        <div className="pt-[44px] pb-[44px]">
+         <div className="pt-[44px] pb-[44px]">
       <Fb_InterestsCard username={id} />
-      </div>
+      </div> 
 
 
         {/* ─── PROFILE POSTS ───────────────── */}
         <div className="px-7 pb-20">
           <h1 className="text-2xl font-bold mb-4 text-white">Profile Posts</h1>
           <FbPosts profileId={id} />
+        </div>
+        
         </div>
       </div>
     </div>
