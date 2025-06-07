@@ -1,4 +1,4 @@
-// src/pages/api/fb_riskscore.js (Good response but not relationship is valid)
+// src/pages/api/fb_riskscore.js 
 import fetch from "node-fetch";
 
 const profileCache = new Map();
@@ -376,14 +376,36 @@ async function getRelationshipsForChunk(chunk, aggregatedData, profileDetails) {
       "For any user with username 'unknown_', data is incomplete. Use fullName or gender if available.",
   });
 
-  const prompt =
-`Analyze the target user's social media connections and classify each connected username as one of: "Family", "Friend", "Associate", "Girlfriend/Wife", "Boyfriend/Husband". Use heuristics:
-- Same last name in likes/comments → "Family"
-- > 2 likes/comments with slang phrases → "Friend"
-- Business‐like comments → "Associate"
-- Multiple tags/likes from opposite‐gender → romantic partner.
+//   const prompt =
+// `Analyze the target user's social media connections and classify each connected username as one of: "Family", "Friend", "Associate", "Girlfriend/Wife", "Boyfriend/Husband". Use heuristics:
+// - Same last name in likes/comments → "Family"
+// - > 2 likes/comments with slang phrases → "Friend"
+// - Business‐like comments → "Associate"
+// - Multiple tags/likes from opposite‐gender → romantic partner.
 
-Return only a valid JSON object: { "<username>": "<relationshipType>", … }. If none, return {}. No extra text.
+// Return only a valid JSON object: { "<username>": "<relationshipType>", … }. If none, return {}. No extra text.
+
+// Data: ${jsonData}`;
+
+
+  const prompt = 
+`Analyze the target user's social media connections and classify relationships as Friend, Associate, Relative, or Girlfriend/Boyfriend based on:
+
+Same Last Name from likes or comments : → Relative
+
+More than 2 Likes/Comments from same profile and slang like comments like bro you livin I see my man let’s go etc… : → Friend/Associate (if there are business like comments like looking forward to release or great work on the post likely to be associate)
+
+Multiple Tags with Opposite Gender same profile:
+  If male target: Female with 1 or more tags → Girlfriend/Wife
+  If female target: Male with 1 or more tags → Boyfriend/Husband
+
+If male profile had 3 likes from female same profile classify her as girlfriend
+If female profile has 5 or more likes from male profile classify them as boyfriend
+
+IMPORTANT:
+• Output only a valid JSON object without any markdown formatting or extra text.
+• Map each username to one of these exact strings: "Family", "Associate", "Friend", "Girlfriend/Wife", or "Boyfriend/Husband".
+• If no relationships can be determined, output {}.
 
 Data: ${jsonData}`;
 
@@ -655,5 +677,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message || "Internal server error." });
   }
 }
-
-
